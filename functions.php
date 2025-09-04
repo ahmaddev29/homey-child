@@ -4457,9 +4457,9 @@ if (!class_exists('Twilio\Rest\Client')) {
 if (!function_exists('homey_send_sms')) {
   function homey_send_sms($to, $message)
   {
-    $sid = 'AC69ee577929fec5f7b755246515c61dea';
-    $auth_token = '818f0f670a89a2f91b78722b036e786c';
-    $twilio_number = '+19362562537';
+    $sid = 'xxxxxxxx';
+    $auth_token = 'xxxxxxx';
+    $twilio_number = 'xxxxxx';
 
     $client = new Twilio\Rest\Client($sid, $auth_token);
 
