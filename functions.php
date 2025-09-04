@@ -4457,9 +4457,9 @@ if (!class_exists('Twilio\Rest\Client')) {
 if (!function_exists('homey_send_sms')) {
   function homey_send_sms($to, $message)
   {
-    $sid = getenv('TWILIO_ACCOUNT_SID');
-    $auth_token = getenv('TWILIO_AUTH_TOKEN');
-    $twilio_number = getenv('TWILIO_PHONE_NUMBER');
+    $sid = 'TWILIO_SID_PLACEHOLDER';
+    $auth_token = 'TWILIO_AUTH_TOKEN_PLACEHOLDER';
+    $twilio_number = 'TWILIO_PHONE_PLACEHOLDER';
 
     // Make sure to handle cases where env variables are not set
     if (empty($sid) || empty($auth_token) || empty($twilio_number)) {
