@@ -2413,19 +2413,25 @@ document.addEventListener("DOMContentLoaded", function () {
   function validateTinyMCE(editorId, showErrors = true) {
     const editor = tinymce.get(editorId);
     if (!editor) return true;
-
     const content = editor.getContent();
     const tempDiv = document.createElement("div");
     tempDiv.innerHTML = content;
     const plainText = tempDiv.textContent || tempDiv.innerText || "";
-
     let isValid = true;
     let errorMessage = "";
-
+    // Flag links in attributes
+    const hasRestrictedHrefOrSrc = !!tempDiv.querySelector(
+      'a[href*="http"], a[href^="www."], a[href^="mailto:"], a[href^="tel:"], ' +
+        'a[href*="facebook.com"], a[href*="twitter.com"], a[href*="instagram.com"], a[href*="linkedin.com"], a[href*="pinterest.com"], a[href*="tiktok.com"], a[href*="snapchat.com"], a[href*="reddit.com"], ' +
+        'img[src*="http"], source[src*="http"]'
+    );
+    if (hasRestrictedHrefOrSrc) {
+      isValid = false;
+      errorMessage += "Website links are not allowed. ";
+    }
     for (const [type, pattern] of Object.entries(patterns)) {
       if (pattern.test(plainText)) {
         isValid = false;
-
         // Create appropriate error message
         switch (type) {
           case "email":
@@ -2442,15 +2448,12 @@ document.addEventListener("DOMContentLoaded", function () {
             errorMessage += "Payment references are not allowed. ";
             break;
         }
-
         pattern.lastIndex = 0;
       }
     }
-
     if (showErrors) {
       const editorContainer = editor.getContainer();
       let errorElement = editorContainer.querySelector(".validation-error");
-
       if (!errorElement) {
         errorElement = document.createElement("div");
         errorElement.className = "validation-error";
@@ -2458,7 +2461,6 @@ document.addEventListener("DOMContentLoaded", function () {
           "color: red; font-size: 14px; margin-top: 5px;";
         editorContainer.appendChild(errorElement);
       }
-
       if (!isValid) {
         errorElement.textContent = errorMessage;
         editorContainer.style.border = "1px solid red";
@@ -2467,7 +2469,6 @@ document.addEventListener("DOMContentLoaded", function () {
         editorContainer.style.border = "";
       }
     }
-
     return isValid;
   }
 });
