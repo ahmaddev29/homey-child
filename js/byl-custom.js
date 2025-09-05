@@ -1988,3 +1988,486 @@ $("#modal-register").on("shown.bs.modal", function (event) {
   }
   is_addnew = 0;
 });
+
+document.addEventListener("DOMContentLoaded", function () {
+  // Patterns to detect restricted content
+  const patterns = {
+    email: /\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b/gi,
+    phone: /(\+\d{1,3}\s?)?(\(\d{1,4}\)|\d{1,4})[\s.-]?\d{1,4}[\s.-]?\d{1,9}/g,
+    url: /(https?:\/\/|www\.)[^\s]+/gi,
+    socialMedia:
+      /(facebook\.com|twitter\.com|instagram\.com|linkedin\.com|pinterest\.com|tiktok\.com|snapchat\.com|reddit\.com)[^\s]*/gi,
+    payments:
+      /\b(zelle|wire\s?transfer|cash\s?app|venmo|paypal|western\s?union|money\s?gram)\b/gi,
+  };
+
+  // Fields to validate
+  const fieldsToValidate = [
+    "listing_title",
+    "day-of-booking",
+    "more-enjoyable-experience",
+    "included-with-booking",
+    "cancellation_policy",
+    "what_expect",
+    "additional_rules",
+    "what_permitted",
+    "what_not_permitted",
+    "who_permitted",
+    "who_not_permitted",
+    "guest_provide",
+    "guest_wear",
+    "features_sleeping",
+    "acc_rules",
+  ];
+
+  // TinyMCE editors to validate
+  const tinyMceEditors = [
+    "description",
+    "special-details-booking",
+    "guide_bio",
+    "accommodations_desc",
+  ];
+
+  // Initialize validation for all fields
+  function initializeFieldValidation() {
+    // Add validation to each regular field
+    fieldsToValidate.forEach((fieldId) => {
+      const field = document.getElementById(fieldId);
+      if (field && !field.hasAttribute("data-validation-added")) {
+        // Mark as having validation to avoid duplicate event listeners
+        field.setAttribute("data-validation-added", "true");
+
+        // Validate on input with debouncing
+        let timeout;
+        field.addEventListener("input", function () {
+          clearTimeout(timeout);
+          timeout = setTimeout(() => {
+            validateAndCleanField(this);
+          }, 500);
+        });
+
+        // Validate on blur
+        field.addEventListener("blur", function () {
+          validateAndCleanField(this);
+        });
+      }
+    });
+
+    // Initialize TinyMCE validation when the editors are ready
+    if (typeof tinymce !== "undefined") {
+      // Set up validation for each TinyMCE editor
+      tinyMceEditors.forEach((editorId) => {
+        if (tinymce.get(editorId)) {
+          setupTinyMCEValidation(editorId);
+        } else {
+          // Wait for TinyMCE to initialize
+          tinymce.on("AddEditor", function (e) {
+            if (tinyMceEditors.includes(e.editor.id)) {
+              setupTinyMCEValidation(e.editor.id);
+            }
+          });
+        }
+      });
+    }
+  }
+
+  // Set up form submission validation
+  const form = document.querySelector("form");
+  if (form) {
+    form.addEventListener("submit", function (e) {
+      let allValid = true;
+
+      // Validate all regular fields
+      fieldsToValidate.forEach((fieldId) => {
+        const field = document.getElementById(fieldId);
+        if (field && !validateField(field, false)) {
+          allValid = false;
+        }
+      });
+
+      // Validate all TinyMCE editors
+      tinyMceEditors.forEach((editorId) => {
+        if (typeof tinymce !== "undefined" && tinymce.get(editorId)) {
+          if (!validateTinyMCE(editorId, false)) {
+            allValid = false;
+          }
+        }
+      });
+
+      if (!allValid) {
+        e.preventDefault();
+        alert(
+          "Please remove restricted content (emails, phone numbers, URLs, etc.) before submitting."
+        );
+      }
+    });
+  }
+
+  // Set up observer to watch for form step changes
+  const formContainer =
+    document.querySelector(".form-body") || document.querySelector("form");
+  if (formContainer) {
+    const formObserver = new MutationObserver(function (mutations) {
+      mutations.forEach(function (mutation) {
+        if (mutation.type === "childList") {
+          // Reinitialize validation for any new fields that might have been added
+          initializeFieldValidation();
+        }
+      });
+    });
+
+    // Start observing
+    formObserver.observe(formContainer, {
+      childList: true,
+      subtree: true,
+    });
+  }
+
+  // Initial validation setup
+  initializeFieldValidation();
+
+  // Validation and cleaning function for regular input fields
+  function validateAndCleanField(field) {
+    const originalValue = field.value;
+    let cleanedValue = originalValue;
+    let isValid = true;
+    let errorMessage = "";
+
+    // Check for each pattern and remove matches
+    for (const [type, pattern] of Object.entries(patterns)) {
+      const matches = cleanedValue.match(pattern);
+      if (matches && matches.length > 0) {
+        isValid = false;
+        cleanedValue = cleanedValue.replace(pattern, "").trim();
+
+        // Create appropriate error message
+        switch (type) {
+          case "email":
+            errorMessage +=
+              "Email addresses are not allowed and have been removed. ";
+            break;
+          case "phone":
+            errorMessage +=
+              "Phone numbers are not allowed and have been removed. ";
+            break;
+          case "url":
+          case "socialMedia":
+            errorMessage +=
+              "Website links are not allowed and have been removed. ";
+            break;
+          case "payments":
+            errorMessage +=
+              "Payment references are not allowed and have been removed. ";
+            break;
+        }
+
+        // Reset the pattern for next test
+        pattern.lastIndex = 0;
+      }
+    }
+
+    // Update field value if changes were made
+    if (cleanedValue !== originalValue) {
+      field.value = cleanedValue;
+    }
+
+    // Show/hide error
+    let errorElement = document.getElementById(field.id + "_error");
+    if (!errorElement) {
+      errorElement = document.createElement("div");
+      errorElement.id = field.id + "_error";
+      errorElement.className = "validation-error";
+      errorElement.style.cssText =
+        "color: red; font-size: 14px; margin-top: 5px;";
+      field.parentNode.appendChild(errorElement);
+    }
+
+    if (!isValid) {
+      errorElement.textContent = errorMessage;
+      field.style.borderColor = "red";
+
+      // Auto-hide error after 5 seconds
+      setTimeout(() => {
+        errorElement.textContent = "";
+        field.style.borderColor = "";
+      }, 5000);
+    } else {
+      errorElement.textContent = "";
+      field.style.borderColor = "";
+    }
+
+    return isValid;
+  }
+
+  // Validation only function (for form submission)
+  function validateField(field, showErrors = true) {
+    const value = field.value;
+    let isValid = true;
+    let errorMessage = "";
+
+    // Check for each pattern
+    for (const [type, pattern] of Object.entries(patterns)) {
+      if (pattern.test(value)) {
+        isValid = false;
+
+        // Create appropriate error message
+        switch (type) {
+          case "email":
+            errorMessage += "Email addresses are not allowed. ";
+            break;
+          case "phone":
+            errorMessage += "Phone numbers are not allowed. ";
+            break;
+          case "url":
+          case "socialMedia":
+            errorMessage += "Website links are not allowed. ";
+            break;
+          case "payments":
+            errorMessage += "Payment references are not allowed. ";
+            break;
+        }
+
+        // Reset the pattern for next test
+        pattern.lastIndex = 0;
+      }
+    }
+
+    if (showErrors) {
+      // Show/hide error
+      let errorElement = document.getElementById(field.id + "_error");
+      if (!errorElement) {
+        errorElement = document.createElement("div");
+        errorElement.id = field.id + "_error";
+        errorElement.className = "validation-error";
+        errorElement.style.cssText =
+          "color: red; font-size: 14px; margin-top: 5px;";
+        field.parentNode.appendChild(errorElement);
+      }
+
+      if (!isValid) {
+        errorElement.textContent = errorMessage;
+        field.style.borderColor = "red";
+      } else {
+        errorElement.textContent = "";
+        field.style.borderColor = "";
+      }
+    }
+
+    return isValid;
+  }
+
+  // Enhanced TinyMCE validation that works in both Visual and Text modes
+  function setupTinyMCEValidation(editorId) {
+    // Map to store interval IDs for each editor
+    if (!window._tinyMCEIntervalMap) {
+      window._tinyMCEIntervalMap = {};
+    }
+    if (typeof tinymce === "undefined" || !tinymce.get(editorId)) {
+      // Try again after a short delay if TinyMCE isn't ready
+      setTimeout(() => setupTinyMCEValidation(editorId), 500);
+      return;
+    }
+
+    const editor = tinymce.get(editorId);
+    let editorTimeout;
+
+    // Monitor both Visual and Text modes
+    const monitorTinyMCE = () => {
+      clearTimeout(editorTimeout);
+      editorTimeout = setTimeout(() => {
+        validateAndCleanTinyMCE(editorId);
+      }, 800);
+    };
+
+    // Events for Visual mode
+    editor.on("keyup", monitorTinyMCE);
+    editor.on("change", monitorTinyMCE);
+    editor.on("NodeChange", monitorTinyMCE);
+
+    // Also monitor the textarea directly for Text mode
+    const textarea = document.getElementById(editorId);
+    if (textarea) {
+      textarea.addEventListener("input", monitorTinyMCE);
+      textarea.addEventListener("blur", monitorTinyMCE);
+    }
+
+    // Set up an interval to periodically check the content
+    // This catches paste operations and other changes that might not trigger events
+    // Clear any previous interval for this editor
+    if (window._tinyMCEIntervalMap[editorId]) {
+      clearInterval(window._tinyMCEIntervalMap[editorId]);
+    }
+    window._tinyMCEIntervalMap[editorId] = setInterval(monitorTinyMCE, 2000);
+
+    // Clean up interval when the editor is removed/destroyed
+    editor.on("remove", function () {
+      if (window._tinyMCEIntervalMap[editorId]) {
+        clearInterval(window._tinyMCEIntervalMap[editorId]);
+        delete window._tinyMCEIntervalMap[editorId];
+      }
+    });
+    editor.on("destroy", function () {
+      if (window._tinyMCEIntervalMap[editorId]) {
+        clearInterval(window._tinyMCEIntervalMap[editorId]);
+        delete window._tinyMCEIntervalMap[editorId];
+      }
+    });
+  }
+
+  function validateAndCleanTinyMCE(editorId) {
+    const editor = tinymce.get(editorId);
+    if (!editor) return true;
+
+    let content = editor.getContent();
+    const originalContent = content;
+
+    // Create a temporary div to parse HTML content
+    const tempDiv = document.createElement("div");
+    tempDiv.innerHTML = content;
+    const plainText = tempDiv.textContent || tempDiv.innerText || "";
+
+    let isValid = true;
+    let errorMessage = "";
+
+    // Check for patterns in plain text
+    for (const [type, pattern] of Object.entries(patterns)) {
+      const matches = plainText.match(pattern);
+      if (matches && matches.length > 0) {
+        isValid = false;
+
+        // Remove matches from HTML content
+        matches.forEach((match) => {
+          // Escape special regex characters in the match
+          const escapedMatch = match.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+          // Create a regex that matches the text in any HTML context
+          const htmlPattern = new RegExp(
+            `>([^<]*?)${escapedMatch}([^>]*?)<|${escapedMatch}`,
+            "gi"
+          );
+          content = content.replace(htmlPattern, (match, prefix, suffix) => {
+            if (prefix !== undefined && suffix !== undefined) {
+              return `>${prefix}${suffix}<`;
+            }
+            return "";
+          });
+        });
+
+        // Create appropriate error message
+        switch (type) {
+          case "email":
+            errorMessage +=
+              "Email addresses are not allowed and have been removed. ";
+            break;
+          case "phone":
+            errorMessage +=
+              "Phone numbers are not allowed and have been removed. ";
+            break;
+          case "url":
+          case "socialMedia":
+            errorMessage +=
+              "Website links are not allowed and have been removed. ";
+            break;
+          case "payments":
+            errorMessage +=
+              "Payment references are not allowed and have been removed. ";
+            break;
+        }
+
+        pattern.lastIndex = 0;
+      }
+    }
+
+    // Update editor content if changes were made
+    if (content !== originalContent) {
+      editor.setContent(content);
+    }
+
+    const editorContainer = editor.getContainer();
+    let errorElement = editorContainer.querySelector(".validation-error");
+
+    if (!errorElement) {
+      errorElement = document.createElement("div");
+      errorElement.className = "validation-error";
+      errorElement.style.cssText =
+        "color: red; font-size: 14px; margin-top: 5px;";
+      editorContainer.appendChild(errorElement);
+    }
+
+    if (!isValid) {
+      errorElement.textContent = errorMessage;
+      editorContainer.style.border = "1px solid red";
+
+      // Auto-hide error after 5 seconds
+      setTimeout(() => {
+        errorElement.textContent = "";
+        editorContainer.style.border = "";
+      }, 5000);
+    } else {
+      errorElement.textContent = "";
+      editorContainer.style.border = "";
+    }
+
+    return isValid;
+  }
+
+  function validateTinyMCE(editorId, showErrors = true) {
+    const editor = tinymce.get(editorId);
+    if (!editor) return true;
+
+    const content = editor.getContent();
+    const tempDiv = document.createElement("div");
+    tempDiv.innerHTML = content;
+    const plainText = tempDiv.textContent || tempDiv.innerText || "";
+
+    let isValid = true;
+    let errorMessage = "";
+
+    for (const [type, pattern] of Object.entries(patterns)) {
+      if (pattern.test(plainText)) {
+        isValid = false;
+
+        // Create appropriate error message
+        switch (type) {
+          case "email":
+            errorMessage += "Email addresses are not allowed. ";
+            break;
+          case "phone":
+            errorMessage += "Phone numbers are not allowed. ";
+            break;
+          case "url":
+          case "socialMedia":
+            errorMessage += "Website links are not allowed. ";
+            break;
+          case "payments":
+            errorMessage += "Payment references are not allowed. ";
+            break;
+        }
+
+        pattern.lastIndex = 0;
+      }
+    }
+
+    if (showErrors) {
+      const editorContainer = editor.getContainer();
+      let errorElement = editorContainer.querySelector(".validation-error");
+
+      if (!errorElement) {
+        errorElement = document.createElement("div");
+        errorElement.className = "validation-error";
+        errorElement.style.cssText =
+          "color: red; font-size: 14px; margin-top: 5px;";
+        editorContainer.appendChild(errorElement);
+      }
+
+      if (!isValid) {
+        errorElement.textContent = errorMessage;
+        editorContainer.style.border = "1px solid red";
+      } else {
+        errorElement.textContent = "";
+        editorContainer.style.border = "";
+      }
+    }
+
+    return isValid;
+  }
+});
